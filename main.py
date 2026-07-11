@@ -1,4 +1,5 @@
 from pathlib import Path
+import ast
 import zipfile
 
 main_code = '''import math
@@ -71,7 +72,6 @@ def make_tasks(topics):
         ]
 
     tasks = []
-
     for topic in topics:
         tasks.append(f"{topic} 개념 정리")
         tasks.append(f"{topic} 문제 풀이")
@@ -87,7 +87,6 @@ def make_subject_order(subject_settings):
     for subject, setting in subject_settings.items():
         importance = setting["importance"]
         confidence = setting["confidence"]
-
         weight = max(1, importance + (6 - confidence))
         order.extend([subject] * weight)
 
@@ -109,7 +108,6 @@ def create_study_plan(
     while current_date < exam_date:
         if get_day_name(current_date) in study_days:
             available_dates.append(current_date)
-
         current_date += timedelta(days=1)
 
     if not available_dates:
@@ -126,11 +124,9 @@ def create_study_plan(
     subject_index = 0
 
     for study_date in available_dates:
-        if study_date.weekday() >= 5:
-            daily_minutes = weekend_minutes
-        else:
-            daily_minutes = weekday_minutes
-
+        daily_minutes = (
+            weekend_minutes if study_date.weekday() >= 5 else weekday_minutes
+        )
         session_count = max(1, math.ceil(daily_minutes / session_minutes))
         remaining_minutes = daily_minutes
 
@@ -240,7 +236,6 @@ st.subheader("1. 과목별 시험 범위 입력")
 
 if not subjects:
     st.warning("왼쪽 사이드바에서 시험 과목을 한 개 이상 선택해 주세요.")
-
 else:
     subject_settings = {}
 
@@ -285,10 +280,8 @@ else:
     ):
         if start_date >= exam_date:
             st.error("공부 시작일은 시험 시작일보다 빨라야 합니다.")
-
         elif not study_days:
             st.error("공부 가능한 요일을 한 개 이상 선택해 주세요.")
-
         else:
             plan = create_study_plan(
                 start_date=start_date,
@@ -302,7 +295,6 @@ else:
 
             if plan.empty:
                 st.error("선택한 기간 안에 공부 가능한 날짜가 없습니다.")
-
             else:
                 st.session_state["study_plan"] = plan
                 st.success("시험 계획표를 만들었습니다.")
@@ -336,7 +328,6 @@ if "study_plan" in st.session_state:
                 f"{status} **{row['과목']}** · "
                 f"{row['공부 내용']} ({row['공부 시간(분)']}분)"
             )
-
     else:
         st.info("오늘은 계획된 공부가 없습니다.")
 
@@ -354,14 +345,8 @@ if "study_plan" in st.session_state:
                 format="YYYY-MM-DD",
                 disabled=True,
             ),
-            "요일": st.column_config.TextColumn(
-                "요일",
-                disabled=True,
-            ),
-            "과목": st.column_config.TextColumn(
-                "과목",
-                disabled=True,
-            ),
+            "요일": st.column_config.TextColumn("요일", disabled=True),
+            "과목": st.column_config.TextColumn("과목", disabled=True),
             "공부 내용": st.column_config.TextColumn("공부 내용"),
             "공부 시간(분)": st.column_config.NumberColumn(
                 "공부 시간(분)",
@@ -388,7 +373,6 @@ if "study_plan" in st.session_state:
     if st.button("🗑️ 계획표 초기화", use_container_width=True):
         del st.session_state["study_plan"]
         st.rerun()
-
 else:
     st.markdown(
         """
@@ -408,20 +392,26 @@ requirements_code = '''streamlit>=1.35.0
 pandas>=2.0.0
 '''
 
-output_dir = Path("/mnt/data/bangbae_exam_planner_clean")
-output_dir.mkdir(parents=True, exist_ok=True)
+folder = Path("/mnt/data/bangbae_exam_planner_final")
+folder.mkdir(parents=True, exist_ok=True)
 
-main_path = output_dir / "main.py"
-requirements_path = output_dir / "requirements.txt"
-zip_path = Path("/mnt/data/bangbae_exam_planner_clean.zip")
+main_path = folder / "main.py"
+requirements_path = folder / "requirements.txt"
+zip_path = Path("/mnt/data/bangbae_exam_planner_final.zip")
 
 main_path.write_text(main_code, encoding="utf-8")
 requirements_path.write_text(requirements_code, encoding="utf-8")
+
+# Verify syntax and make sure file-creation code is absent from main.py.
+ast.parse(main_code)
+for forbidden in ["output_dir", "mkdir(", "write_text(", "zipfile", "Path("]:
+    assert forbidden not in main_code, f"Forbidden text found: {forbidden}"
 
 with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
     zip_file.write(main_path, arcname="main.py")
     zip_file.write(requirements_path, arcname="requirements.txt")
 
+print("검사 완료: main.py에는 파일 생성 코드가 없습니다.")
 print(main_path)
 print(requirements_path)
 print(zip_path)
